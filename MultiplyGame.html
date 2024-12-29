@@ -116,9 +116,15 @@
     let currentQuestion;
     let startTime;
     let mistakes = [];
-    let allAnswers = []; // Added to track all answers
+    let allAnswers = [];
     let askedQuestions = new Set();
     let playerName = '';
+    const startImage = document.createElement('img');
+    startImage.src = 'character.jpg';
+    startImage.alt = 'Multiply Game';
+    startImage.style.maxWidth = '100%';
+    startImage.style.height = 'auto';
+    document.getElementById('game-container').prepend(startImage);
     const highscores = JSON.parse(localStorage.getItem('highscores')) || [];
 
     function updateHighscoreList() {
@@ -148,26 +154,46 @@
       startTime = new Date();
     }
 
+    // New helper function to check if user input matches the correct answer
+    function isAnswerCorrect(userInput, correctAnswer) {
+      return userInput === correctAnswer;
+    }
+
     function checkAnswer() {
       const input = Number(document.getElementById('answer').value);
       const timeTaken = (new Date() - startTime) / 1000;
-      let isCorrect = false;
+      let isCorrect = isAnswerCorrect(input, currentQuestion.answer);
 
-      if (input === currentQuestion.answer) {
-        isCorrect = true;
+      if (isCorrect) {
         score += timeTaken <= 3 ? 2 : 1;
-        document.getElementById('feedback').innerHTML = `<span class="icon correct">✔</span> תשובה נכונה! (+${timeTaken <= 3 ? 2 : 1} נקודות)`;
+        document.getElementById('feedback').innerHTML =
+          `<span class="icon correct">✔</span> תשובה נכונה! (+${timeTaken <= 3 ? 2 : 1} נקודות)`;
       } else {
         mistakes.push({ ...currentQuestion, userAnswer: input });
-        document.getElementById('feedback').innerHTML = `<span class="icon wrong">✖</span> תשובה שגויה! התשובה הנכונה הייתה ${currentQuestion.answer}.`;
+        document.getElementById('feedback').innerHTML =
+          `<span class="icon wrong">✖</span> תשובה שגויה! התשובה הנכונה הייתה ${currentQuestion.answer}.`;
       }
 
-      // Track all answers
       allAnswers.push({ ...currentQuestion, userAnswer: input, isCorrect });
-
       document.getElementById('score').innerText = `⭐ ניקוד: ${score}`;
       generateUniqueQuestion();
     }
+
+    function checkCorrectAnswer() {
+      const input = Number(document.getElementById('answer').value);
+      const timeTaken = (new Date() - startTime) / 1000;
+      let isCorrect = isAnswerCorrect(input, currentQuestion.answer);
+
+      if (isCorrect) {
+        score += timeTaken <= 3 ? 2 : 1;
+        document.getElementById('feedback').innerHTML =
+          `<span class="icon correct">✔</span> תשובה נכונה! (+${timeTaken <= 3 ? 2 : 1} נקודות)`;
+        allAnswers.push({ ...currentQuestion, userAnswer: input, isCorrect });
+        document.getElementById('score').innerText = `⭐ ניקוד: ${score}`;
+        generateUniqueQuestion();
+      }
+    }
+
 
     function startGame() {
       playerName = document.getElementById('player-name').value.trim() || 'שחקן אנונימי';
@@ -208,6 +234,8 @@
     document.getElementById('start').addEventListener('click', startGame);
     document.getElementById('answer').addEventListener('keyup', (e) => {
       if (e.key === 'Enter') checkAnswer();
+
+      checkCorrectAnswer();
     });
     document.getElementById('restart').addEventListener('click', () => {
       timeLeft = 60;
