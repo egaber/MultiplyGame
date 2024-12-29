@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="he">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>אתגר הכפל</title>
+  <style>
+    body {
+      font-family: 'Comic Sans MS', cursive, sans-serif;
+      background: linear-gradient(to bottom, #87CEFA, #1E90FF);
+      text-align: center;
+      padding: 20px;
+      color: #fff;
+      direction: rtl;
+    }
+    #game-container, #results {
+      margin: 20px auto;
+      padding: 20px;
+      border: 4px solid #FFD700;
+      border-radius: 15px;
+      max-width: 400px;
+      background-color: #FFFAF0;
+      color: #333;
+      box-shadow: 0 8px 10px rgba(0, 0, 0, 0.2);
+    }
+    h1, h2 {
+      color: #FFD700;
+    }
+    #timer, #score {
+      font-size: 1.5em;
+      margin: 10px 0;
+      color: #333;
+    }
+    #question {
+      font-size: 2em;
+      margin: 20px 0;
+      font-weight: bold;
+    }
+    #answer {
+      width: 100px;
+      padding: 10px;
+      font-size: 1.2em;
+      text-align: center;
+      margin-bottom: 20px;
+      border: 2px solid #FFD700;
+      border-radius: 5px;
+    }
+    button {
+      padding: 12px 25px;
+      font-size: 1.2em;
+      color: #fff;
+      background-color: #FF6347;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    button:hover {
+      background-color: #FF4500;
+    }
+    #feedback {
+      margin-top: 10px;
+      font-size: 1.2em;
+      color: #89ff00;
+    }
+    ul {
+      text-align: right;
+      margin-top: 20px;
+      padding-right: 20px;
+      color: #333;
+    }
+    li {
+      margin: 5px 0;
+    }
+    .icon {
+      font-size: 1.5em;
+      margin-left: 10px;
+    }
+    .correct {
+      color: #32CD32;
+    }
+    .wrong {
+      color: #FF4500;
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div id="game-container">
+      <h1>🌟 אתגר הכפל 🌟</h1>
+      <input id="player-name" type="text" placeholder="הכנס שם" />
+      <button id="start">התחל</button>
+    </div>
+    <div id="game-play" style="display:none;">
+      <div id="timer">⏳ זמן שנותר: 60</div>
+      <div id="score">⭐ ניקוד: 0</div>
+      <div id="question">מוכן?</div>
+      <input id="answer" type="number" placeholder="תשובתך" />
+      <div id="feedback"></div>
+    </div>
+    <div id="results" style="display:none;">
+      <h2>⏰ הזמן נגמר!</h2>
+      <div id="summary"></div>
+      <button id="restart">שחק שוב</button>
+      <div id="highscores">
+        <h3>🎖 טבלת שיאים 🎖</h3>
+        <ol id="highscore-list"></ol>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let timerInterval;
+    let timeLeft = 60;
+    let score = 0;
+    let currentQuestion;
+    let startTime;
+    let mistakes = [];
+    let allAnswers = []; // Added to track all answers
+    let askedQuestions = new Set();
+    let playerName = '';
+    const highscores = JSON.parse(localStorage.getItem('highscores')) || [];
+
+    function updateHighscoreList() {
+      const highscoreList = document.getElementById('highscore-list');
+      highscoreList.innerHTML = '';
+      highscores.sort((a, b) => b.score - a.score).slice(0, 5).forEach(entry => {
+        const li = document.createElement('li');
+        li.textContent = `${entry.name}: ${entry.score}`;
+        highscoreList.appendChild(li);
+      });
+    }
+
+    function getRandomNumber() {
+      return Math.floor(Math.random() * 8) + 2;
+    }
+
+    function generateUniqueQuestion() {
+      let a, b;
+      do {
+        a = getRandomNumber();
+        b = getRandomNumber();
+      } while (askedQuestions.has(`${a},${b}`) || askedQuestions.has(`${b},${a}`));
+      askedQuestions.add(`${a},${b}`);
+      currentQuestion = { a, b, answer: a * b };
+      document.getElementById('question').innerText = `כמה זה ${a} * ${b}?`;
+      document.getElementById('answer').value = '';
+      startTime = new Date();
+    }
+
+    function checkAnswer() {
+      const input = Number(document.getElementById('answer').value);
+      const timeTaken = (new Date() - startTime) / 1000;
+      let isCorrect = false;
+
+      if (input === currentQuestion.answer) {
+        isCorrect = true;
+        score += timeTaken <= 3 ? 2 : 1;
+        document.getElementById('feedback').innerHTML = `<span class="icon correct">✔</span> תשובה נכונה! (+${timeTaken <= 3 ? 2 : 1} נקודות)`;
+      } else {
+        mistakes.push({ ...currentQuestion, userAnswer: input });
+        document.getElementById('feedback').innerHTML = `<span class="icon wrong">✖</span> תשובה שגויה! התשובה הנכונה הייתה ${currentQuestion.answer}.`;
+      }
+
+      // Track all answers
+      allAnswers.push({ ...currentQuestion, userAnswer: input, isCorrect });
+
+      document.getElementById('score').innerText = `⭐ ניקוד: ${score}`;
+      generateUniqueQuestion();
+    }
+
+    function startGame() {
+      playerName = document.getElementById('player-name').value.trim() || 'שחקן אנונימי';
+      document.getElementById('game-container').style.display = 'none';
+      document.getElementById('game-play').style.display = 'block';
+      document.getElementById('answer').focus();
+      generateUniqueQuestion();
+
+      timerInterval = setInterval(() => {
+        timeLeft -= 1;
+        document.getElementById('timer').innerText = `⏳ זמן שנותר: ${timeLeft}`;
+        if (timeLeft <= 0) {
+          endGame();
+        }
+      }, 1000);
+    }
+
+    function endGame() {
+      clearInterval(timerInterval);
+      document.getElementById('game-play').style.display = 'none';
+      document.getElementById('results').style.display = 'block';
+      const summary = document.getElementById('summary');
+      summary.innerHTML = `<p>הניקוד שלך: ${score}</p>`;
+
+      summary.innerHTML += '<p>התוצאות שלך:</p><ul>';
+      allAnswers.forEach(answer => {
+        const correctnessIcon = answer.isCorrect ? '<span class="icon correct">✔️</span>' : '<span class="icon wrong">✖️</span>';
+        summary.innerHTML += `
+          <li>${correctnessIcon} ${answer.a} * ${answer.b} = ${answer.answer} (ענית: ${answer.userAnswer})</li>`;
+      });
+      summary.innerHTML += '</ul>';
+
+      highscores.push({ name: playerName, score });
+      localStorage.setItem('highscores', JSON.stringify(highscores));
+      updateHighscoreList();
+    }
+
+    document.getElementById('start').addEventListener('click', startGame);
+    document.getElementById('answer').addEventListener('keyup', (e) => {
+      if (e.key === 'Enter') checkAnswer();
+    });
+    document.getElementById('restart').addEventListener('click', () => {
+      timeLeft = 60;
+      score = 0;
+      mistakes = [];
+      allAnswers = []; // Reset all answers
+      askedQuestions.clear();
+      document.getElementById('game-container').style.display = 'block';
+      document.getElementById('results').style.display = 'none';
+      document.getElementById('timer').innerText = `⏳ זמן שנותר: 60`;
+      document.getElementById('score').innerText = `⭐ ניקוד: 0`;
+      document.getElementById('feedback').innerText = '';
+      document.getElementById('player-name').value = '';
+      document.getElementById('game-play').style.display = 'none';
+    });
+
+    updateHighscoreList();
+  </script>
+</body>
+</html>
