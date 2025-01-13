@@ -1,0 +1,198 @@
+const config = {
+  type: Phaser.AUTO,
+  width: 800,
+  height: 600,
+  backgroundColor: '#87ceeb',
+  scene: {
+    preload: preload,
+    create: create,
+    update: update,
+  },
+};
+
+const game = new Phaser.Game(config);
+
+let questionText;
+let options = [];
+let score = 0;
+let scoreText;
+let timerText;
+let timerEvent;
+let gameOver = false;
+let balloons = [];
+
+function preload() {
+  this.load.image('bg', 'https://examples.phaser.io/assets/skies/gradient26.png');
+  this.load.image('chalkboard', 'https://images.unsplash.com/photo-1711062717319-393e424a3538?q=80&w=2880&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D');
+  this.load.image('balloon', 'https://media.istockphoto.com/id/857735718/vector/blue-realistic-balloon.jpg?s=612x612&w=0&k=20&c=3NaZNldCWJ1S2PuIzKoMnTJk6-SGibQgCxenkhsJDlY=');
+  this.load.image('banana', 'https://i5.walmartimages.com/seo/Fresh-Banana-Fruit-Each_5939a6fa-a0d6-431c-88c6-b4f21608e4be.f7cd0cc487761d74c69b7731493c1581.jpeg');
+  this.load.audio('correct', 'https://cdn.pixabay.com/download/audio/2021/08/09/audio_0af6cbd186.mp3?filename=chime-sound-7143.mp3');
+  this.load.audio('wrong', 'https://cdn.pixabay.com/download/audio/2024/03/31/audio_90a0db4b4c.mp3?filename=error-4-199275.mp3');
+}
+
+function create() {
+  // Background
+  this.add.image(400, 300, 'bg');
+  this.add.image(400, 300, 'chalkboard').setScale(1.2);
+
+  // Display score
+  scoreText = this.add.text(10, 10, 'Score: 0', {
+    fontSize: '32px',
+    fill: '#fff',
+  });
+
+  // Timer
+  timerText = this.add.text(650, 10, 'Time: 60', {
+    fontSize: '32px',
+    fill: '#fff',
+  });
+
+  timerEvent = this.time.addEvent({
+    delay: 60000, // 60 seconds
+    callback: endGame,
+    callbackScope: this,
+  });
+
+  this.time.addEvent({
+    delay: 1000,
+    callback: () => {
+      if (!gameOver) {
+        const timeLeft = Math.max(0, Math.ceil(timerEvent.getRemainingSeconds()));
+        timerText.setText(`Time: ${timeLeft}`);
+      }
+    },
+    loop: true,
+  });
+
+  // Display question
+  questionText = this.add.text(200, 100, '', {
+    fontSize: '48px',
+    fill: '#fff',
+  });
+
+  // Generate first question
+  generateQuestion(this);
+}
+
+function update() {}
+
+function generateQuestion(scene) {
+  // Clear previous options
+  options.forEach((option) => option.destroy());
+  options = [];
+
+  // Clear previous balloons
+  balloons.forEach((balloon) => balloon.destroy());
+  balloons = [];
+
+  // Generate random numbers for the question
+  const num1 = Phaser.Math.Between(1, 5);
+  const num2 = Phaser.Math.Between(1, 5);
+  const correctAnswer = num1 + num2;
+
+  // Update question text
+  questionText.setText(`${num1} + ${num2} = ?`);
+
+  // Add balloons or bananas for numbers
+  displayObjects(scene, num1, 100, 200);
+  displayObjects(scene, num2, 500, 200);
+
+  // Generate draggable options, ensuring all are unique and one is correct
+  const answers = new Set();
+  answers.add(correctAnswer);
+  while (answers.size < 3) {
+    const newAnswer = Phaser.Math.Between(1, 10);
+    if (!answers.has(newAnswer)) {
+      answers.add(newAnswer);
+    }
+  }
+  const answerArray = Array.from(answers);
+  Phaser.Utils.Array.Shuffle(answerArray);
+
+  answerArray.forEach((answer, i) => {
+    const option = scene.add.text(200 + i * 150, 400, answer, {
+      fontSize: '48px',
+      fill: '#fff',
+      backgroundColor: '#007acc',
+      padding: { x: 10, y: 10 },
+      borderRadius: 10,
+    })
+      .setInteractive({ draggable: true })
+      .on('dragstart', (pointer, dragX, dragY) => {
+        option.setTint(0xffcc00);
+      })
+      .on('drag', (pointer, dragX, dragY) => {
+        option.x = dragX;
+        option.y = dragY;
+      })
+      .on('dragend', (pointer) => {
+        option.clearTint();
+        checkAnswer(scene, option, answer === correctAnswer);
+      });
+
+    options.push(option);
+  });
+}
+
+function displayObjects(scene, count, startX, startY) {
+  const spacing = 50; // Ensure enough space between objects
+  for (let i = 0; i < count; i++) {
+    const isBalloon = Phaser.Math.Between(0, 1) === 0;
+    let scale = isBalloon ? 0.1 : 0.0185
+    const object = scene.add.image(startX + i * spacing, startY, isBalloon ? 'balloon' : 'banana').setScale(scale);
+    balloons.push(object);
+  }
+}
+
+function checkAnswer(scene, option, isCorrect) {
+  if (gameOver) return;
+
+  const sound = scene.sound.add(isCorrect ? 'correct' : 'wrong');
+  sound.play();
+
+  if (isCorrect) {
+    score += 10;
+    option.destroy();
+    generateQuestion(scene);
+  } else {
+    option.setStyle({ fill: '#ff0000' }); // Paint wrong answer red
+    scene.tweens.add({
+      targets: option,
+      x: option.x + 50,
+      duration: 300,
+      ease: 'Power2',
+      yoyo: true,
+      onComplete: () => {
+        option.setStyle({ fill: '#fff' }); // Reset color
+      },
+    });
+  }
+  scoreText.setText(`Score: ${score}`);
+}
+
+function endGame() {
+  gameOver = true;
+  this.add.rectangle(400, 300, 600, 400, 0x000000, 0.7);
+  this.add.text(250, 200, 'Game Over!', {
+    fontSize: '64px',
+    fill: '#fff',
+  });
+
+  this.add.text(250, 300, `Final Score: ${score}`, {
+    fontSize: '48px',
+    fill: '#fff',
+  });
+
+  const playAgainButton = this.add.text(250, 400, 'Play Again', {
+    fontSize: '48px',
+    fill: '#00ff00',
+    backgroundColor: '#000',
+    padding: { x: 10, y: 10 },
+  })
+    .setInteractive()
+    .on('pointerdown', () => {
+      score = 0;
+      gameOver = false;
+      this.scene.restart();
+    });
+}
